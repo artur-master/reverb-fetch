@@ -1,7 +1,7 @@
 Axios=require('axios');
 
-async function getPricingInfo(listItem) {
-  const response = await Axios.get(`https://www.ebay.com/b/${listItem}?rt=nc&mag=1&LH_BIN=1&LH_ItemCondition=3000&LH_PrefLoc=3`,
+async function getItemsInfo(listItem) {
+  const response = await Axios.get(`https://www.ebay.com/b/${listItem}?LH_BIN=1&LH_ItemCondition=3000&LH_PrefLoc=3&mag=1&rt=nc&_sop=10`,
     {
       headers: {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -10,28 +10,57 @@ async function getPricingInfo(listItem) {
       }
     });
 
-  const regex = /<li class=\"s-item s-item--large s-item--bgcolored\">(.*?)<\/li>/gi;
+  const regex = /<li class="s-item s-item--large s-item--bgcolored">(.*?)<\/li>/g;
   const arr = response.data.match(regex);
-
-  const titleEx = /<h3 class="s-item__title*[^>]+?">(.*?)<\/h3>/g;
-  const priceEx = /<span class="s-item__price">\$(.*?)<\/span>/g;
-  const shippingEx = /<span class="s-item__shipping s-item__logisticsCost">\$(.*)?( shipping)<\/span>/g;
+  
+  const linkEx = /<a *[^>]+? class="s-item__link" *[^>]+?href="(.*?)">/g;
 
   const re = arr.map(element => {
-    const title = Array.from(element.matchAll(titleEx), m => m[1]);
-    const price = Array.from(element.matchAll(priceEx), m => m[1]);
-    const shipping = Array.from(element.matchAll(shippingEx), m => m[1]);
-
-    return {
-      title: title[0],
-      price: price[0],
-      shpping: shipping[0] || "Free"
-    }
+    const link = Array.from(element.matchAll(linkEx), m => m[1]);    
+    return link[0];
   });
 
   return re;
 }
 
-getPricingInfo("Guitar-Bass-Pedals/41411").then(re => {
-  console.log(re);
+async function getItemDetails(link) {
+  const linkEx = /https:\/\/www.ebay.com\/itm\/(\d*.?)/g;
+  const itemNumber = Array.from(link.matchAll(linkEx), m => m[1])[0].replace('?', '');
+
+  const response = await Axios.get(link,
+    {
+      headers: {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+        "accept-encoding": "gzip, deflate, br",
+        "accept-language": "en-US,en;q=0.9"
+      }
+    });
+  const data = response.data.trim();
+
+  const titleEx = /<h1 class="it-ttl" itemprop="name" id="itemTitle">(.*?)<\/h1>/g;
+  const title = Array.from(data.matchAll(titleEx), m => m[1]);
+  
+  const priceEx = /<span class="notranslate"*[^>]+ id="prcIsum"*[^>]+ itemprop="price"*[^>]+ style="text-decoration:none"*[^>]+ content="(.*?)">/g;
+  const price = Array.from(data.matchAll(priceEx), m => m[1]);
+
+  const brandEx = /<span itemprop="brand" itemscope="itemscope" itemtype="http:\/\/schema.org\/Brand"><span itemprop="name">(.*?)<\/span><\/span>/g;
+  const brand = Array.from(data.matchAll(brandEx), m => m[1]);
+  
+  const modelEx = /<span itemprop="model">(.*?)<\/span>/g;
+  const model = Array.from(data.matchAll(modelEx), m => m[1]);
+  
+  return {
+    itemNumber: itemNumber,
+    title: title[0].replace('<span class="g-hdn">Details about  &nbsp;</span>', ''),
+    price: price[0],
+    brand: brand[0] || "",
+    model: model[0] || ""
+  }
+}
+
+getItemsInfo("Guitar-Effects-Pedals/181222").then(async (re) => {
+  for(let i=0; i<10; i++){
+    const details = await getItemDetails(re[i]);
+    console.log(details);
+  }
 });
