@@ -49,12 +49,23 @@ async function getItemDetails(link) {
   const modelEx = /<span itemprop="model">(.*?)<\/span>/g;
   const model = Array.from(data.matchAll(modelEx), m => m[1]);
   
+  const upcEx = /<span itemprop="gtin13">(.*?)<\/span>/g;
+  const upc = Array.from(data.matchAll(upcEx), m => m[1]);
+
+  const zipCode = '07052'
+  const shippingResp = await Axios.get(`https://www.ebay.com/itm/getrates?item=${itemNumber}&country=1&zipCode=${zipCode}&co=0`);
+  const shippingCost = shippingResp.data.freeShipping ?
+    "Free Shipping":
+    Array.from(shippingResp.data.shippingSummary.matchAll(/<span>(\$\d.*)?<\/span>/g), m => m[1])[0] || "";
+    
   return {
     itemNumber: itemNumber,
     title: title[0].replace('<span class="g-hdn">Details about  &nbsp;</span>', ''),
     price: price[0],
     brand: brand[0] || "",
-    model: model[0] || ""
+    model: model[0] || "",
+    UPC: upc[0] || "",
+    shippingCost: shippingCost.replace('$', '')
   }
 }
 
